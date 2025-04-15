@@ -4,6 +4,7 @@ import sys
 import warnings
 import argparse
 from src.ds import CTF
+import time  # Import the time module
 
 import numpy as np
 import torch as T
@@ -51,7 +52,7 @@ graph_sets = {
     "expl_set": {"expl", "expl_dox", "expl_xm", "expl_xm_dox", "expl_xy", "expl_xy_dox", "expl_my", "expl_my_dox"}
 }
 
-valid_queries = {"ate", "ett", "nde", "ctfde"}
+valid_queries = {"ate", "ett", "nde", "ctfde", "avg_error"}
 
 parser = argparse.ArgumentParser(description="Basic Runner")
 parser.add_argument('name', help="name of the experiment")
@@ -60,47 +61,47 @@ parser.add_argument('pipeline', help="pipeline to use")
 parser.add_argument('--gen', default="ctm", help="data generating model (default: ctm)")
 
 parser.add_argument('--lr', type=float, default=4e-3, help="optimizer learning rate (default: 4e-3)")
-parser.add_argument('--data-bs', type=int, default=1000, help="batch size of data (default: 1000)")
-parser.add_argument('--ncm-bs', type=int, default=1000, help="batch size of NCM samples (default: 1000)")
+parser.add_argument('--data-bs', type=int, default=1000, help="batch size of data (default: 1000)") #?
+parser.add_argument('--ncm-bs', type=int, default=1000, help="batch size of NCM samples (default: 1000)") #?
 parser.add_argument('--h-layers', type=int, default=2, help="number of hidden layers (default: 2)")
 parser.add_argument('--h-size', type=int, default=128, help="neural network hidden layer size (default: 128)")
-parser.add_argument('--u-size', type=int, default=1, help="dimensionality of U variables (default: 1)")
-parser.add_argument('--neural-pu', action="store_true", help="use neural parameters in U distributions")
-parser.add_argument('--layer-norm', action="store_true", help="set flag to use layer norm")
+parser.add_argument('--u-size', type=int, default=1, help="dimensionality of U variables (default: 1)") # does it define the true dimensionality of U?
+parser.add_argument('--neural-pu', action="store_true", help="use neural parameters in U distributions") #?
+parser.add_argument('--layer-norm', action="store_true", help="set flag to use layer norm")     #?
 
-parser.add_argument('--gan-mode', default="vanilla", help="GAN loss function (default: vanilla)")
+parser.add_argument('--gan-mode', default="vanilla", help="GAN loss function (default: vanilla)") 
 parser.add_argument('--d-iters', type=int, default=1,
-                    help="number of discriminator iterations per generator iteration (default: 1)")
+                    help="number of discriminator iterations per generator iteration (default: 1)") #?
 parser.add_argument('--grad-clamp', type=float, default=0.01,
                     help="value for clamping gradients in WGAN (default: 0.01)")
 parser.add_argument('--gp-weight', type=float, default=10.0,
                     help="regularization constant for gradient penalty in WGAN-GP (default: 10.0)")
 
-parser.add_argument('--full-batch', action="store_true", help="use n as the batch size")
+parser.add_argument('--full-batch', action="store_true", help="use n as the batch size") 
 
-parser.add_argument('--regions', type=int, default=20, help="number of regions for CTM (default: 20)")
-parser.add_argument('--scale-regions', action="store_true", help="scale regions by C-cliques in CTM")
-parser.add_argument('--gen-bs', type=int, default=10000, help="batch size of ctm data generation (default: 10000)")
+parser.add_argument('--regions', type=int, default=20, help="number of regions for CTM (default: 20)") #?
+parser.add_argument('--scale-regions', action="store_true", help="scale regions by C-cliques in CTM") #?
+parser.add_argument('--gen-bs', type=int, default=10000, help="batch size of ctm data generation (default: 10000)") #?
 parser.add_argument('--no-positivity', action="store_true", help="does not enforce positivity for ID experiments")
 
 parser.add_argument('--id-query', help="choice of query to identify")
 parser.add_argument('--query-track', help="choice of query to track")
 parser.add_argument('--id-reruns', '-r', type=int, default=1,
                     help="hypothesis testing trials for ID experiments (default: 1)")
-parser.add_argument('--max-query-iters', type=int, default=3000, help="number of ID iterations (default: 3000)")
-parser.add_argument('--max-lambda', type=float, default=1.0, help="regularization constant start (default: 1)")
+parser.add_argument('--max-query-iters', type=int, default=3000, help="number of ID iterations (default: 3000)") #?
+parser.add_argument('--max-lambda', type=float, default=1.0, help="regularization constant start (default: 1)") 
 parser.add_argument('--min-lambda', type=float, default=0.001, help="regularization constant end (default: 1e-3)")
 parser.add_argument('--mc-sample-size', type=int, default=10000,
-                    help="sample size for query optimization (default: 10000)")
+                    help="sample size for query optimization (default: 10000)") #? difference from n-samples?
 parser.add_argument('--single-disc', action="store_true", help="use one discriminator")
 parser.add_argument('--gen-sigmoid', action="store_true", help="use sigmoids in generator")
 parser.add_argument('--perturb-sd', type=float, default=0.1,
-                    help="standard deviation of distribution for perturbing data")
+                    help="standard deviation of distribution for perturbing data") #?
 
 parser.add_argument('--graph', '-G', default="all", help="name of preset graph")
 parser.add_argument('--n-trials', '-t', type=int, default=1, help="number of trials")
 parser.add_argument('--n-samples', '-n', type=int, default=10000, help="number of samples (default: 10000)")
-parser.add_argument('--dim', '-d', type=int, default=1, help="dimensionality of variables (default: 1)")
+parser.add_argument('--dim', '-d', type=int, default=1, help="dimensionality of variables (default: 1)") # does it mean observed variable sizes?
 parser.add_argument('--gpu', help="GPU to use")
 
 parser.add_argument('--verbose', action="store_true", help="print more information")
@@ -129,6 +130,8 @@ assert gan_choice in gan_choices
 assert query_choice is None or query_choice in valid_queries
 assert query_track is None or query_track in valid_queries
 
+if query_choice == "avg_error":
+    print("Computing average errors for P(Y | do(X))...")
 
 pipeline = valid_pipelines[pipeline_choice]
 dat_model = valid_generators[gen_choice]
@@ -190,6 +193,9 @@ if args.dim == -1:
 else:
     d_list = [args.dim]
 
+# Start timing
+start_time = time.time()
+
 for graph in graph_set:
     do_var_list = get_experimental_variables(graph)
     eval_query, opt_query = get_query(graph, query_track)
@@ -239,7 +245,7 @@ for graph in graph_set:
 
         for i in range(args.n_trials):
             while True:
-                cg_file = "dat/cg/{}.cg" .format(graph)
+                cg_file = "dat/cg/{}.cg".format(graph)
                 try:
                     if query_choice is None and pipeline_choice:
                         runner = NCMRunner(pipeline, dat_model, ncm_model)
@@ -255,3 +261,10 @@ for graph in graph_set:
                     print(e)
                     print('[failed]', i, args.name)
                     raise
+
+# End timing
+end_time = time.time()
+elapsed_time = end_time - start_time
+
+# Print total execution time
+print(f"Total execution time: {elapsed_time:.2f} seconds.")

@@ -92,6 +92,10 @@ def get_query(graph_name, query_name):
             eval_query = py1dox0_x1
             opt_query = py1dox0_x1, py0dox0_x1
 
+    elif query_name == "AVG_ERROR":
+        eval_query = "avg_error"
+        opt_query = None
+
     elif query_name == "NDE":
         if len(mediators) == 0:
             return get_query(graph_name, "ATE")

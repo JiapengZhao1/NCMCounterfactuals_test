@@ -107,9 +107,12 @@ class NCMRunner(BaseRunner):
                 start_metrics = evaluation.all_metrics(m.generator, m.ncm, hyperparams["do-var-list"], dat_sets,
                                                        n=1000000, stored=stored_metrics,
                                                        query_track=hyperparams['eval-query'])
-                if hyperparams['query-track'] is not None:
+
+                # Only store true query results if the query is not "avg_error"
+                if hyperparams['query-track'] != "avg_error" and hyperparams['query-track'] is not None:
                     true_q = 'true_{}'.format(evaluation.serialize_query(hyperparams['eval-query']))
                     stored_metrics[true_q] = start_metrics[true_q]
+
                 m.update_metrics(stored_metrics)
 
                 # train model
@@ -121,6 +124,9 @@ class NCMRunner(BaseRunner):
                 m.load_state_dict(ckpt['state_dict'])
                 results = evaluation.all_metrics(m.generator, m.ncm, hyperparams["do-var-list"], dat_sets,
                                                  n=1000000, query_track=hyperparams['eval-query'])
+                if hyperparams['query-track'] == "avg_error":
+                    avg_errors = evaluation.compute_average_errors(m.generator, m.ncm, n=1000000)
+                    results.update(avg_errors)
                 print(results)
 
                 # save results

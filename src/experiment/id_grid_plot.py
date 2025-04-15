@@ -1,4 +1,5 @@
 import argparse
+import os  # Add this import to check file existence
 
 import numpy as np
 import pandas as pd
@@ -317,11 +318,19 @@ if mode == 'expl':
         for q in queries:
             acc_data[q] = dict()
             for method in method_choice:
-                gap_data = pd.read_csv("{}/{}_{}_gap_results.csv".format(d, method, q))
-                kl_data = pd.read_csv("{}/{}_{}_kl_results.csv".format(d, method, q))
+                gap_file = "{}/{}_{}_gap_results.csv".format(d, method, q)
+                kl_file = "{}/{}_{}_kl_results.csv".format(d, method, q)
+                
+                # Check if both files exist
+                if not os.path.exists(gap_file) or not os.path.exists(kl_file):
+                    print(f"Skipping query '{q}' for method '{method}' as required files are missing.")
+                    continue
+
+                gap_data = pd.read_csv(gap_file)
+                kl_data = pd.read_csv(kl_file)
                 if epoch_steps is None:
                     epoch_steps = gap_data.columns.values[3:].tolist()
-
+ 
                 acc_data[q][method] = get_acc_lines(gap_data, epoch_steps, q, tau_choice, rolling_window=roll)
                 acc_data[q][method] = acc_data[q][method].set_index('graph')
 
@@ -334,8 +343,16 @@ if mode == 'expl':
         acc_data = dict()
         epoch_steps = None
         for q in queries:
-            gap_data[q] = pd.read_csv("{}/{}_{}_gap_results.csv".format(d, method_choice, q))
-            kl_data[q] = pd.read_csv("{}/{}_{}_kl_results.csv".format(d, method_choice, q))
+            gap_file = "{}/{}_{}_gap_results.csv".format(d, method_choice, q)
+            kl_file = "{}/{}_{}_kl_results.csv".format(d, method_choice, q)
+            
+            # Check if both files exist
+            if not os.path.exists(gap_file) or not os.path.exists(kl_file):
+                print(f"Skipping query '{q}' as required files are missing.")
+                continue
+
+            gap_data[q] = pd.read_csv(gap_file)
+            kl_data[q] = pd.read_csv(kl_file)
             if epoch_steps is None:
                 epoch_steps = gap_data[q].columns.values[3:].tolist()
 

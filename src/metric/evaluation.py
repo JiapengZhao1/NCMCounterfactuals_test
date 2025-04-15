@@ -73,7 +73,9 @@ def serialize_do(do_set):
 
 
 def serialize_query(query):
-    if isinstance(query, CTF):
+    if isinstance(query, str):  # Handle string queries like "avg_error"
+        return query
+    if isinstance(query, CTF):  # Handle CTF objects
         if query.name is not None:
             return query.name
     else:
@@ -118,13 +120,18 @@ def all_metrics(truth, ncm, dat_dos, dat_sets, n=1000000, stored=None, query_tra
             m["total_true_supnorm"] += m["true_supnorm_{}".format(name)]
             m["total_dat_supnorm"] += m["dat_supnorm_{}".format(name)]
 
-    if query_track is not None:
+    # Handle "avg_error" as a metric, not a query
+    if query_track == "avg_error":
+        avg_errors = compute_average_errors(truth, ncm, n=n)
+        m.update(avg_errors)  # Add average error metrics to the results
+    else:
         true_q = 'true_{}'.format(serialize_query(query_track))
         m[true_q] = eval_query(truth, query_track, n) if stored is None or true_q not in stored else stored[true_q]
         ncm_q = 'ncm_{}'.format(serialize_query(query_track))
         m[ncm_q] = eval_query(ncm, query_track, n)
         err_q = 'err_ncm_{}'.format(serialize_query(query_track))
         m[err_q] = m[true_q] - m[ncm_q]
+
     return m
 
 
@@ -241,3 +248,48 @@ def naive_kl(t_table, m_table):
     p_t = joined_table['P(V)_t']
     p_m = joined_table['P(V)_m']
     return (p_t * (np.log(p_t) - np.log(p_m))).sum()
+
+
+def compute_average_errors(truth, estimated, n=1000000, do={}):
+    """
+    Compute the average errors for the query P(Y | do(X)).
+
+    Args:
+        truth: The true model (e.g., SCM or CTM).
+        estimated: The estimated model (e.g., GAN_NCM or another SCM).
+        n: Number of samples to generate.
+        do: Dictionary of interventions (e.g., {"X": value}).
+
+    Returns:
+        dict: A dictionary containing the average errors for each combination of X and Y.
+    """
+    # Generate probability tables for the true and estimated models
+    true_table = probability_table(m=truth, n=n, do=do)
+    estimated_table = probability_table(m=estimated, n=n, do=do)
+
+    # Extract unique values of X and Y
+    x_values = sorted(true_table['X0'].unique())
+    y_values = sorted(true_table['Y0'].unique())
+
+    # Compute errors for each combination of X and Y
+    errors = {}
+    for x in x_values:
+        for y in y_values:
+            # Extract probabilities for the true model
+            true_prob = true_table[
+                (true_table['X0'] == x) & (true_table['Y0'] == y)
+            ]['P(V)'].sum()
+
+            # Extract probabilities for the estimated model
+            estimated_prob = estimated_table[
+                (estimated_table['X0'] == x) & (estimated_table['Y0'] == y)
+            ]['P(V)'].sum()
+
+            # Compute the absolute error
+            error = abs(true_prob - estimated_prob)
+            errors[f"P(Y={y} | X={x})"] = error
+
+    # Compute the average error
+    avg_error = sum(errors.values()) / len(errors)
+    errors["avg_error"] = avg_error
+    return errors
