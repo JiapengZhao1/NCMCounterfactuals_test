@@ -1,0 +1,17 @@
+<NODES>
+R
+X
+X2
+Y
+Z
+
+<EDGES>
+X -> R
+X -> Z
+X -> X2
+Z -> X2
+X2 -> Y
+R -> Y
+X <-> Y
+X <-> Z
+Z <-> Y

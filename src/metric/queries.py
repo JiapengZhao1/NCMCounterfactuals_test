@@ -34,7 +34,8 @@ def is_q_id_in_G(graph_name, query_name):
                 "expl_dox", "expl_my", "expl_my_dox"},
         "NDE": {"backdoor", "frontdoor", "napkin", "simple", "m", "med", "expl", "zid_a", "gid_a", "gid_b",
                 "expl_dox", "expl_xm_dox", "expl_xy_dox"},
-        "CTFDE": {"backdoor", "frontdoor", "simple", "m", "med", "expl", "expl_dox"}
+        "CTFDE": {"backdoor", "frontdoor", "simple", "m", "med", "expl", "expl_dox"},
+        "AVG_ERROR": {"exp1", "exp2", "exp3", "exp4", "exp5", "exp6", "exp7", "exp8"}  # Add graphs for avg_error
     }
 
     if query_name not in id_graphs:
@@ -143,6 +144,8 @@ def get_experimental_variables(graph_name):
     zid_set = {"zid_a", "zid_b", "zid_c"}
     gid_set = {"gid_a", "gid_b", "gid_c", "gid_d"}
     expl_dox_set = {"expl_dox", "expl_xm_dox", "expl_xy_dox", "expl_my_dox"}
+    exp_x = {"exp1", "exp3", "exp5", "exp8","exp2", "exp4", "exp6", "exp7"}
+    #exp_x1 = {"exp2", "exp4", "exp6", "exp7"}
 
     if graph_name in zid_set:
         return [{}, {"Z": 0}, {"Z": 1}]
@@ -150,5 +153,9 @@ def get_experimental_variables(graph_name):
         return [{"X1": 0}, {"X1": 1}, {"X2": 0}, {"X2": 1}]
     elif graph_name in expl_dox_set:
         return [{}, {"X": 0}, {"X": 1}]
+    elif graph_name in exp_x:
+        return [{"X": 0}, {"X": 1}]
+    #elif graph_name in exp_x1:
+        #return [{"X1": 0}, {"X1": 1}]
     else:
         return [{}]

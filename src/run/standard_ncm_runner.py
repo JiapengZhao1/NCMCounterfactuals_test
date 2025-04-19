@@ -122,11 +122,13 @@ class NCMRunner(BaseRunner):
                 trainer.fit(m)
                 ckpt = T.load(checkpoint.best_model_path)
                 m.load_state_dict(ckpt['state_dict'])
-                results = evaluation.all_metrics(m.generator, m.ncm, hyperparams["do-var-list"], dat_sets,
-                                                 n=1000000, query_track=hyperparams['eval-query'])
+                results = {}
+                
                 if hyperparams['query-track'] == "avg_error":
-                    avg_errors = evaluation.compute_average_errors(m.generator, m.ncm, n=1000000)
-                    results.update(avg_errors)
+                    results = evaluation.compute_average_errors(m.generator, m.ncm, n=1000000, dat_dos = hyperparams["do-var-list"])
+                else:
+                    results = evaluation.all_metrics(m.generator, m.ncm, hyperparams["do-var-list"], dat_sets,
+                                                 n=1000000, query_track=hyperparams['eval-query'])
                 print(results)
 
                 # save results
@@ -138,7 +140,8 @@ class NCMRunner(BaseRunner):
                 T.save(dat_sets, f'{d}/dat.th')
                 T.save(m.state_dict(), f'{d}/best.th')
 
-                return m, results
+                # Return the output directory
+                return d
             except Exception:
                 # move out/*/* to err/*/*/#
                 e = d.replace("out/", "err/").rsplit('-', 1)[0]

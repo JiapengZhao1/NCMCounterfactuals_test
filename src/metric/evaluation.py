@@ -73,9 +73,7 @@ def serialize_do(do_set):
 
 
 def serialize_query(query):
-    if isinstance(query, str):  # Handle string queries like "avg_error"
-        return query
-    if isinstance(query, CTF):  # Handle CTF objects
+    if isinstance(query, CTF):
         if query.name is not None:
             return query.name
     else:
@@ -119,12 +117,8 @@ def all_metrics(truth, ncm, dat_dos, dat_sets, n=1000000, stored=None, query_tra
                                                              true_pv=dat_ps[name])
             m["total_true_supnorm"] += m["true_supnorm_{}".format(name)]
             m["total_dat_supnorm"] += m["dat_supnorm_{}".format(name)]
-
-    # Handle "avg_error" as a metric, not a query
-    if query_track == "avg_error":
-        avg_errors = compute_average_errors(truth, ncm, n=n)
-        m.update(avg_errors)  # Add average error metrics to the results
-    else:
+        
+    if query_track is not None and query_track is not "avg_error":
         true_q = 'true_{}'.format(serialize_query(query_track))
         m[true_q] = eval_query(truth, query_track, n) if stored is None or true_q not in stored else stored[true_q]
         ncm_q = 'ncm_{}'.format(serialize_query(query_track))
@@ -250,46 +244,59 @@ def naive_kl(t_table, m_table):
     return (p_t * (np.log(p_t) - np.log(p_m))).sum()
 
 
-def compute_average_errors(truth, estimated, n=1000000, do={}):
+def compute_average_errors(truth, estimated, n=1000000, dat_dos={}):
     """
-    Compute the average errors for the query P(Y | do(X)).
+        Compute the average errors for the query P(Y | do(X)).
 
-    Args:
-        truth: The true model (e.g., SCM or CTM).
-        estimated: The estimated model (e.g., GAN_NCM or another SCM).
-        n: Number of samples to generate.
-        do: Dictionary of interventions (e.g., {"X": value}).
+        Args:
+            truth: The true model (e.g., SCM or CTM).
+            estimated: The estimated model (e.g., GAN_NCM or another SCM).
+            n: Number of samples to generate.
+            dat_dos: List of dictionaries specifying interventions (e.g., [{"X": 0}, {"X": 1}]).
 
-    Returns:
-        dict: A dictionary containing the average errors for each combination of X and Y.
-    """
-    # Generate probability tables for the true and estimated models
-    true_table = probability_table(m=truth, n=n, do=do)
-    estimated_table = probability_table(m=estimated, n=n, do=do)
-
-    # Extract unique values of X and Y
-    x_values = sorted(true_table['X0'].unique())
-    y_values = sorted(true_table['Y0'].unique())
-
-    # Compute errors for each combination of X and Y
+        Returns:
+            dict: A dictionary containing the average errors for each combination of X and Y.
+        """
     errors = {}
-    for x in x_values:
+
+    for i, do_set in enumerate(dat_dos):
+        # Expand the do_set for the given number of samples
+        expanded_do_dat = {k: expand_do(v, n) for (k, v) in do_set.items()}
+
+        # Generate probability tables for the true and estimated models
+        true_table = probability_table(m=truth, n=n, do=expanded_do_dat)
+        estimated_table = probability_table(m=estimated, n=n, do=expanded_do_dat)
+
+        # Ensure Y is present
+        y_column = None
+        for col in true_table.columns:
+            if col.startswith("Y"):
+                y_column = col
+                break
+
+        if y_column is None:
+            raise KeyError("The required column for 'Y' is missing in the probability table.")
+
+        # Extract unique values of Y
+        y_values = sorted(true_table[y_column].unique())
+
+        # Extract the intervention variable dynamically
+        intervention_var = list(do_set.keys())[0]
+        intervention_value = list(do_set.values())[0]
+
+        # Compute errors for each value of Y under the current do(X)
         for y in y_values:
             # Extract probabilities for the true model
-            true_prob = true_table[
-                (true_table['X0'] == x) & (true_table['Y0'] == y)
-            ]['P(V)'].sum()
+            true_prob = true_table[true_table[y_column] == y]['P(V)'].sum()
 
             # Extract probabilities for the estimated model
-            estimated_prob = estimated_table[
-                (estimated_table['X0'] == x) & (estimated_table['Y0'] == y)
-            ]['P(V)'].sum()
+            estimated_prob = estimated_table[estimated_table[y_column] == y]['P(V)'].sum()
 
             # Compute the absolute error
             error = abs(true_prob - estimated_prob)
-            errors[f"P(Y={y} | X={x})"] = error
+            errors[f"P(Y={y} | do({intervention_var}={intervention_value}))"] = error
 
-    # Compute the average error
+    # Compute the average error across all interventions
     avg_error = sum(errors.values()) / len(errors)
     errors["avg_error"] = avg_error
     return errors

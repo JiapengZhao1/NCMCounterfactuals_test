@@ -5,6 +5,7 @@ import warnings
 import argparse
 from src.ds import CTF
 import time  # Import the time module
+import json  # Import the json module
 
 import numpy as np
 import torch as T
@@ -41,7 +42,8 @@ valid_graphs = {"backdoor", "bow", "frontdoor", "napkin", "simple", "bdm", "med"
                 "zid_a", "zid_b", "zid_c",
                 "gid_a", "gid_b", "gid_c", "gid_d",
                 "med_c1", "med_c2",
-                "expl_xm", "expl_xm_dox", "expl_xy", "expl_dox", "expl_xy_dox", "expl_my", "expl_my_dox"}
+                "expl_xm", "expl_xm_dox", "expl_xy", "expl_xy_dox", "expl_my", "expl_my_dox",
+                "exp1", "exp3", "exp5", "exp8","exp2", "exp4", "exp6", "exp7"}
 
 graph_sets = {
     "all": {"backdoor", "bow", "frontdoor", "napkin", "simple", "med", "expl", "zid_a", "zid_b", "zid_c",
@@ -49,7 +51,8 @@ graph_sets = {
     "standard": {"backdoor", "bow", "frontdoor", "napkin", "iv", "extended_bow", "m", "bad_m", "bdm"},
     "zid": {"zid_a", "zid_b", "zid_c"},
     "gid": {"gid_a", "gid_b", "gid_c", "gid_d"},
-    "expl_set": {"expl", "expl_dox", "expl_xm", "expl_xm_dox", "expl_xy", "expl_xy_dox", "expl_my", "expl_my_dox"}
+    "expl_set": {"expl", "expl_dox", "expl_xm", "expl_xm_dox", "expl_xy", "expl_xy_dox", "expl_my", "expl_my_dox"},
+    "8exp": {"exp1", "exp3", "exp5", "exp8","exp2", "exp4", "exp6", "exp7"}
 }
 
 valid_queries = {"ate", "ett", "nde", "ctfde", "avg_error"}
@@ -193,8 +196,6 @@ if args.dim == -1:
 else:
     d_list = [args.dim]
 
-# Start timing
-start_time = time.time()
 
 for graph in graph_set:
     do_var_list = get_experimental_variables(graph)
@@ -244,27 +245,44 @@ for graph in graph_set:
             hyperparams["ncm-bs"] = n
 
         for i in range(args.n_trials):
+            results = {}
             while True:
+                # Start timing
+                start_time = time.time()    
                 cg_file = "dat/cg/{}.cg".format(graph)
                 try:
                     if query_choice is None and pipeline_choice:
                         runner = NCMRunner(pipeline, dat_model, ncm_model)
-                        if not runner.run(args.name, cg_file, n, d, i,
-                                          hyperparams=hyperparams, gpu=gpu_used, verbose=args.verbose):
-                            break
+                        output_dir = runner.run(args.name, cg_file, n, d, i,
+                                                hyperparams=hyperparams, gpu=gpu_used, verbose=args.verbose)
                     else:
                         runner = NCMMinMaxRunner(pipeline, dat_model, ncm_model)
-                        if not runner.run("{}/{}".format(args.name, graph), cg_file, n, d, i,
-                                          hyperparams=hyperparams, gpu=gpu_used, verbose=args.verbose):
-                            break
+                        output_dir = runner.run("{}/{}".format(args.name, graph), cg_file, n, d, i,
+                                                hyperparams=hyperparams, gpu=gpu_used, verbose=args.verbose)
+
+                    # End timing
+                    end_time = time.time()
+                    elapsed_time = end_time - start_time
+
+                    # Add elapsed_time to the results
+                    results["elapsed_time"] = elapsed_time
+
+                    # Load metrics from the runner's output directory
+                    with open(f'{output_dir}/results.json', 'r') as file:
+                        metrics = json.load(file)
+
+                    # Merge metrics into the results dictionary
+                    results.update(metrics)
+
+                    # Print total execution time
+                    print(f"Total execution time: {elapsed_time:.2f} seconds.")
+
+                    # Save results to results.json in the correct directory
+                    with open(f'{output_dir}/results.json', 'w') as file:
+                        json.dump(results, file)
+
+                    break
                 except Exception as e:
                     print(e)
                     print('[failed]', i, args.name)
                     raise
-
-# End timing
-end_time = time.time()
-elapsed_time = end_time - start_time
-
-# Print total execution time
-print(f"Total execution time: {elapsed_time:.2f} seconds.")
