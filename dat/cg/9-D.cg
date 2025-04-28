@@ -1,0 +1,27 @@
+<NODES>
+X
+V1
+V2
+V3
+V4
+V5
+V6
+V7
+Y
+
+<EDGES>
+X -> V1
+V1 -> V2
+X -> V3
+V3 -> V4
+X -> V5
+V5 -> V6
+X -> V7
+V7 -> Y
+V2 -> Y
+V4 -> Y
+V6 -> Y
+X <-> V2
+X <-> V4
+X <-> V6
+X <-> Y

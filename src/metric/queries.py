@@ -35,7 +35,8 @@ def is_q_id_in_G(graph_name, query_name):
         "NDE": {"backdoor", "frontdoor", "napkin", "simple", "m", "med", "expl", "zid_a", "gid_a", "gid_b",
                 "expl_dox", "expl_xm_dox", "expl_xy_dox"},
         "CTFDE": {"backdoor", "frontdoor", "simple", "m", "med", "expl", "expl_dox"},
-        "AVG_ERROR": {"exp1", "exp2", "exp3", "exp4", "exp5", "exp6", "exp7", "exp8"}  # Add graphs for avg_error
+        "AVG_ERROR": {"exp1", "exp2", "exp3", "exp4", "exp5", "exp6", "exp7", "exp8",
+                      "5-CH", "9-CH", "25-CH", "49-CH", "99-CH", "9-D", "17-D", "65-D", "6-CC", "15-CC", "45-CC"}  # Add graphs for avg_error
     }
 
     if query_name not in id_graphs:
@@ -144,7 +145,7 @@ def get_experimental_variables(graph_name):
     zid_set = {"zid_a", "zid_b", "zid_c"}
     gid_set = {"gid_a", "gid_b", "gid_c", "gid_d"}
     expl_dox_set = {"expl_dox", "expl_xm_dox", "expl_xy_dox", "expl_my_dox"}
-    exp_x = {"exp1", "exp3", "exp5", "exp8","exp2", "exp4", "exp6", "exp7"}
+    exp_x = {"exp1", "exp3", "exp5", "exp8","exp2", "exp4", "exp6", "exp7", "5-CH", "9-CH", "25-CH", "49-CH", "99-CH", "9-D", "17-D", "65-D", "6-CC", "15-CC", "45-CC"}
     #exp_x1 = {"exp2", "exp4", "exp6", "exp7"}
 
     if graph_name in zid_set:
