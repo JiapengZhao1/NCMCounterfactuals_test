@@ -90,7 +90,7 @@ class NCMRunner(BaseRunner):
                 dat_sets = []
                 for dat_do_set in hyperparams["do-var-list"]:
                     expand_do_set = {k: expand_do(v, n=n) for (k, v) in dat_do_set.items()}
-                    dat_sets.append(dat_m(n=n, do=expand_do_set))
+                    dat_sets.append(dat_m(n=n, do=expand_do_set)) #calling data model as the class name is equal to run its function forward->sample()
                 m = self.pipeline(dat_m, hyperparams["do-var-list"], dat_sets, cg, dim, hyperparams=hyperparams,
                                   ncm_model=self.ncm_model)
 

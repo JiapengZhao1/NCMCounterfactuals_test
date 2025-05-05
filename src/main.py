@@ -44,7 +44,7 @@ valid_graphs = {"backdoor", "bow", "frontdoor", "napkin", "simple", "bdm", "med"
                 "med_c1", "med_c2",
                 "expl_xm", "expl_xm_dox", "expl_xy", "expl_xy_dox", "expl_my", "expl_my_dox",
                 "exp1", "exp3", "exp5", "exp8","exp2", "exp4", "exp6", "exp7",
-                "5-CH", "9-CH", "25-CH", "49-CH", "99-CH", "9-D", "17-D", "65-D", "6-CC", "15-CC", "45-CC"}
+                "5-ch", "9-ch", "25-ch", "49-ch", "99-ch", "9-d", "17-d", "65-d", "6-cc", "15-cc", "45-cc"}
 
 graph_sets = {
     "all": {"backdoor", "bow", "frontdoor", "napkin", "simple", "med", "expl", "zid_a", "zid_b", "zid_c",
@@ -54,7 +54,7 @@ graph_sets = {
     "gid": {"gid_a", "gid_b", "gid_c", "gid_d"},
     "expl_set": {"expl", "expl_dox", "expl_xm", "expl_xm_dox", "expl_xy", "expl_xy_dox", "expl_my", "expl_my_dox"},
     "8exp": {"exp1", "exp3", "exp5", "exp8","exp2", "exp4", "exp6", "exp7"},
-    "large": {"5-CH", "9-CH", "25-CH", "49-CH", "99-CH", "9-D", "17-D", "65-D", "6-CC", "15-CC", "45-CC"}
+    "large": {"5-ch", "9-ch", "25-ch", "49-ch", "99-ch", "9-d", "17-d", "65-d", "6-cc", "15-cc", "45-cc"}
 }
 
 valid_queries = {"ate", "ett", "nde", "ctfde", "avg_error"}

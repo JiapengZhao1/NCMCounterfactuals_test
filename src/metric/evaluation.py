@@ -244,7 +244,7 @@ def naive_kl(t_table, m_table):
     return (p_t * (np.log(p_t) - np.log(p_m))).sum()
 
 
-def compute_average_errors(truth, estimated, n=1000000, dat_dos={}):
+def compute_average_errors(truth, estimated, n=1000000, dat_dos=[]):
     """
         Compute the average errors for the query P(Y | do(X)).
 
@@ -281,8 +281,8 @@ def compute_average_errors(truth, estimated, n=1000000, dat_dos={}):
         y_values = sorted(true_table[y_column].unique())
 
         # Extract the intervention variable dynamically
-        intervention_var = list(do_set.keys())[0]
-        intervention_value = list(do_set.values())[0]
+        intervention_var = list(do_set.keys())
+        intervention_value = list(do_set.values())
 
         # Compute errors for each value of Y under the current do(X)
         for y in y_values:
