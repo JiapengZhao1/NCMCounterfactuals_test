@@ -96,7 +96,7 @@ def get_query(graph_name, query_name):
 
     elif query_name == "AVG_ERROR":
         eval_query = "avg_error"
-        opt_query = None
+        opt_query = None, None
 
     elif query_name == "NDE":
         if len(mediators) == 0:
@@ -155,7 +155,8 @@ def get_experimental_variables(graph_name):
     elif graph_name in expl_dox_set:
         return [{}, {"X": 0}, {"X": 1}]
     elif graph_name in exp_x:
-        return [{"X": 0}, {"X": 1}]
+        return [{}]
+        #return [{"X": 0}, {"X": 1}]
     #elif graph_name in exp_x1:
         #return [{"X1": 0}, {"X1": 1}]
     else:

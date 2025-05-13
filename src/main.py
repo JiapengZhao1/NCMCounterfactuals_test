@@ -174,16 +174,18 @@ hyperparams = {
     'gen-sigmoid': args.gen_sigmoid,
     'perturb-sd': args.perturb_sd,
     'full-batch': args.full_batch,
-    'positivity': not args.no_positivity
+    'positivity': not args.no_positivity,
+    'n-samples': args.n_samples,
+    'dim': args.dim,
 }
 
 if pipeline_choice == "gan":
     hyperparams['data-bs'] = hyperparams['data-bs'] * hyperparams['d-iters']
 
 if graph_choice in graph_sets:
-    if query_choice is None:
-        graph_set = {graph for graph in graph_sets[graph_choice] if is_q_id_in_G(graph, query_track)}
-    else:
+    if query_choice is None: #Only Estimation
+        graph_set = {graph for graph in graph_sets[graph_choice] if is_q_id_in_G(graph, query_track)} #remove graphs that are not identifiable for the query
+    else: #Identification and Estimation
         graph_set = graph_sets[graph_choice]
 else:
     graph_set = {args.graph}
@@ -203,9 +205,9 @@ for graph in graph_set:
     do_var_list = get_experimental_variables(graph)
     eval_query, opt_query = get_query(graph, query_track)
 
-    hyperparams['do-var-list'] = do_var_list
-    hyperparams['eval-query'] = eval_query
-    if query_choice is not None:
+    hyperparams['do-var-list'] = do_var_list #this do-var-list used for data generation before training, and also during the training for L2 distribution generation
+    hyperparams['eval-query'] = eval_query #this query is used for inference after training 
+    if query_choice is not None: #this two query is used for Identification during the training to compute the query loss
         hyperparams['max-query-1'] = opt_query[0]
         hyperparams['max-query-2'] = opt_query[1]
 

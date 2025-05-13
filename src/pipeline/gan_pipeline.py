@@ -27,7 +27,10 @@ class GANPipeline(BasePipeline):
         if hyperparams is None:
             hyperparams = dict()
 
-        v_size = {k: 1 if k in {'X', 'Y', 'M', 'W'} else dim for k in cg}
+        if hyperparams['query-track'] != "avg_error":
+            v_size = {k: 1 if k in {'X', 'Y', 'M', 'W'} else dim for k in cg}
+        else:
+            v_size = {k: dim for k in cg}
         ncm = ncm_model(cg, v_size=v_size, default_u_size=hyperparams.get('u-size', 1), hyperparams=hyperparams,
                         gen_use_sigmoid=hyperparams['gen-sigmoid'],
                         disc_use_sigmoid=(hyperparams.get("gan-mode", "NA") != "wgan"))
@@ -114,7 +117,11 @@ class GANPipeline(BasePipeline):
                 query_loss += cur_loss
         return query_loss
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch, batch_idx):#, optimizer_idx=None):
+        #print(f"Automatic Optimization: {self.automatic_optimization}")
+        #if optimizer_idx is not None:
+            #raise ValueError("optimizer_idx should not be passed when automatic optimization is disabled.")
+        #print(f"Automatic Optimization: {self.automatic_optimization}")
         G_opt, D_opt, PU_opt = self.optimizers()
         ncm_n = self.ncm_batch_size
 
@@ -128,7 +135,7 @@ class GANPipeline(BasePipeline):
 
         # Train Discriminator
         total_d_loss = 0
-        for d_iter in range(self.d_iters):
+        for d_iter in range(self.d_iters): ## discriminator trained first for d_iters times
             D_opt.zero_grad()
             for i, do_set in enumerate(self.do_var_list):
                 ncm_batch = self.ncm(ncm_n, do={k: expand_do(v, ncm_n) for (k, v) in do_set.items()})
@@ -146,12 +153,12 @@ class GANPipeline(BasePipeline):
                     real_batch = new_real_batch
                 ncm_disc_real_out = self.ncm.get_disc_outputs(real_batch, i)
                 ncm_disc_fake_out = self.ncm.get_disc_outputs(ncm_batch, i)
-                D_loss = self._get_D_loss(ncm_disc_real_out, ncm_disc_fake_out)
+                D_loss = self._get_D_loss(ncm_disc_real_out, ncm_disc_fake_out) ## for each do set, discriminator calcuate D_loss
 
                 if self.gan_mode == "wgangp":
                     grad_penalty = self._get_gradient_penalty(real_batch, ncm_batch, i)
                     self.log('grad_penalty', grad_penalty, prog_bar=True)
-                    D_loss += grad_penalty
+                    D_loss += grad_penalty ## add gradient penalty to D_loss
 
                 total_d_loss += D_loss.item()
                 self.manual_backward(D_loss)
@@ -171,12 +178,12 @@ class GANPipeline(BasePipeline):
         for i, do_set in enumerate(self.do_var_list):
             ncm_batch = self.ncm(ncm_n, do={k: expand_do(v, ncm_n) for (k, v) in do_set.items()})
             ncm_disc_fake_out = self.ncm.get_disc_outputs(ncm_batch, i)
-            G_loss = self._get_G_loss(ncm_disc_fake_out) / len(self.do_var_list)
+            G_loss = self._get_G_loss(ncm_disc_fake_out) / len(self.do_var_list) ## average G_loss over do sets
             g_loss_record += G_loss.item()
             self.manual_backward(G_loss)
 
         q_loss_record = 0
-        if self.max_query is not None:
+        if self.max_query is not None: ## only calculate q_loss when Identification required. Estimation only: max_query = None
             q_loss = max_reg * (len(self.do_var_list) ** 2) * self._get_q_loss()
             q_loss_record = q_loss.item()
             if not T.isnan(q_loss):

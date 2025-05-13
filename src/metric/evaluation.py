@@ -32,8 +32,11 @@ def probability_table(m=None, n=1000000, do={}, dat=None):
     cols = dict()
     for v in sorted(dat):
         result = dat[v].detach().numpy()
-        for i in range(result.shape[1]):
-            cols["{}{}".format(v, i)] = np.squeeze(result[:, i])
+        if result.shape[1] == 1:  # Single-dimensional variable
+            cols[v] = np.squeeze(result)  # Use the variable name directly
+        else:  # Multi-dimensional variable
+            for i in range(result.shape[1]):
+                cols["{}{}".format(v, i)] = np.squeeze(result[:, i])
 
     df = pd.DataFrame(cols)
     return (df.groupby(list(df.columns))
@@ -244,7 +247,7 @@ def naive_kl(t_table, m_table):
     return (p_t * (np.log(p_t) - np.log(p_m))).sum()
 
 
-def compute_average_errors(truth, estimated, n=1000000, dat_dos=[]):
+def compute_average_errors(truth, estimated, n=1000000, dat_dos=[], true_pv=None):
     """
         Compute the average errors for the query P(Y | do(X)).
 
@@ -259,13 +262,20 @@ def compute_average_errors(truth, estimated, n=1000000, dat_dos=[]):
         """
     errors = {}
 
-    for i, do_set in enumerate(dat_dos):
+    # Convert dat_sets[0] (true_pv) to probability_table format if provided
+    if true_pv is not None:
+        true_pv = convert_dat_sets_to_probability_table(true_pv)
+        #print(true_pv)
+
+    for i, do_set in enumerate([{"X": 0}, {"X": 1}]):
         # Expand the do_set for the given number of samples
         expanded_do_dat = {k: expand_do(v, n) for (k, v) in do_set.items()}
 
         # Generate probability tables for the true and estimated models
-        true_table = probability_table(m=truth, n=n, do=expanded_do_dat)
+        #true_table = probability_table(m=truth, n=n, do=expanded_do_dat)
+        true_table = true_pv if true_pv is not None else probability_table(truth, n=n, do=expanded_do_dat)
         estimated_table = probability_table(m=estimated, n=n, do=expanded_do_dat)
+        print(estimated_table)
 
         # Ensure Y is present
         y_column = None
@@ -300,3 +310,31 @@ def compute_average_errors(truth, estimated, n=1000000, dat_dos=[]):
     avg_error = sum(errors.values()) / len(errors)
     errors["avg_error"] = avg_error
     return errors
+
+
+def convert_dat_sets_to_probability_table(dat_sets):
+    """
+    Convert dat_sets format to probability_table format.
+
+    Args:
+        dat_sets (dict): A dictionary of tensors representing the dataset.
+
+    Returns:
+        pd.DataFrame: A DataFrame in the probability_table format with descriptive column names.
+    """
+    # Convert tensors to 1D arrays and create a DataFrame with variable names as column names
+    df = pd.DataFrame({key: value.squeeze().tolist() for key, value in dat_sets.items()})
+
+    # Group by unique combinations of variable values and compute probabilities
+    probability_table = (
+        df.groupby(list(df.columns))  # Group by all columns (unique combinations of variable values)
+        .size()  # Count occurrences of each combination
+        .div(len(df))  # Divide by total rows to compute probabilities
+        .rename('P(V)')  # Rename the computed column to 'P(V)'
+        .reset_index()  # Reset the index to make it a flat DataFrame
+    )
+
+    # Rename columns to include variable names explicitly
+    probability_table.columns = [f"{col}" if col != 'P(V)' else col for col in probability_table.columns]
+
+    return probability_table
