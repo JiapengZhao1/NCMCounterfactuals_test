@@ -6,9 +6,12 @@ import argparse
 from src.ds import CTF
 import time  # Import the time module
 import json  # Import the json module
+import traceback  # Import traceback module
 
 import numpy as np
 import torch as T
+import torch
+torch.set_float32_matmul_precision('high')  # 或 'medium'
 
 from src.pipeline import DivergencePipeline, GANPipeline, MLEPipeline
 from src.scm.model_classes import XORModel, RoundModel
@@ -54,7 +57,10 @@ graph_sets = {
     "gid": {"gid_a", "gid_b", "gid_c", "gid_d"},
     "expl_set": {"expl", "expl_dox", "expl_xm", "expl_xm_dox", "expl_xy", "expl_xy_dox", "expl_my", "expl_my_dox"},
     "8exp": {"exp1", "exp3", "exp5", "exp8","exp2", "exp4", "exp6", "exp7"},
-    "large": {"5-ch", "9-ch", "25-ch", "49-ch", "99-ch", "9-d", "17-d", "65-d", "6-cc", "15-cc", "45-cc"}
+    "large": {"5-ch", "9-ch", "25-ch", "49-ch", "99-ch", "9-d", "17-d", "65-d", "6-cc", "15-cc", "45-cc"},
+    "5ch": {"5-ch", "9-ch", "25-ch", "49-ch", "99-ch"},
+    "3d": {"9-d", "17-d", "65-d"},
+    "2cc": {"6-cc", "15-cc"}
 }
 
 valid_queries = {"ate", "ett", "nde", "ctfde", "avg_error"}
@@ -287,6 +293,7 @@ for graph in graph_set:
 
                     break
                 except Exception as e:
-                    print(e)
+                    print("Exception occurred:", e)
+                    traceback.print_exc()
                     print('[failed]', i, args.name)
                     raise

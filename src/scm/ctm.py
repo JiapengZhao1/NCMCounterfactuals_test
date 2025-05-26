@@ -41,7 +41,7 @@ class CTM(SCM):
             region_outputs.append(output)
         default_output = self.rand_state.binomial(1, 0.5, size=(outcomes, output_size))
         region_outputs.append(default_output)
-        region_outputs = T.LongTensor(region_outputs)
+        region_outputs = T.LongTensor(np.array(region_outputs))
 
         def ctm_func(v_raw, u_raw):
             v = {k: v.cpu() for (k, v) in v_raw.items()}

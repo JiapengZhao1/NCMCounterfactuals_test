@@ -133,13 +133,18 @@ class GANPipeline(BasePipeline):
         G_opt.zero_grad()
         PU_opt.zero_grad()
 
+        for b in batch:
+            for k, v in b.items():
+                assert v.device.type == "cuda", f"{k} not on cuda"
+
         # Train Discriminator
         total_d_loss = 0
         for d_iter in range(self.d_iters): ## discriminator trained first for d_iters times
             D_opt.zero_grad()
             for i, do_set in enumerate(self.do_var_list):
                 ncm_batch = self.ncm(ncm_n, do={k: expand_do(v, ncm_n) for (k, v) in do_set.items()})
-                real_batch = {k: v[d_iter * self.cut_batch_size:(d_iter + 1) * self.cut_batch_size].float()
+                ncm_batch = {k: v.to(self.device) for k, v in ncm_batch.items()}
+                real_batch = {k: v[d_iter * self.cut_batch_size:(d_iter + 1) * self.cut_batch_size].float().to(self.device)
                               for (k, v) in batch[i].items()}
                 if not self.gen_sigmoid:
                     new_real_batch = dict()
@@ -196,11 +201,12 @@ class GANPipeline(BasePipeline):
         self.ncm.f_disc.zero_grad()
         self.ncm.pu.zero_grad()
 
+        
         # logging
-        if (self.current_epoch + 1) % 10 == 0:
+        if (self.current_epoch + 1) % 300 == 0:
             if not self.logged:
                 results = all_metrics(self.generator, self.ncm, self.do_var_list, self.dat_sets,
-                                      n=100000, stored=self.stored_metrics, query_track=self.query_track)
+                                      n=10000, stored=self.stored_metrics, query_track=self.query_track)
                 for k, v in results.items():
                     self.log(k, v)
 

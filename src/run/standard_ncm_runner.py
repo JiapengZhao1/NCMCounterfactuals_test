@@ -22,22 +22,24 @@ class NCMRunner(BaseRunner):
 
     def create_trainer(self, directory, gpu=None):
         checkpoint = pl.callbacks.ModelCheckpoint(dirpath=f'{directory}/checkpoints/', monitor="train_loss")
-        return pl.Trainer(
+        trainer_kwargs = dict(
             callbacks=[
                 checkpoint,
-                pl.callbacks.EarlyStopping(monitor='train_loss',
-                                           patience=self.pipeline.patience,
-                                           min_delta=self.pipeline.min_delta,
-                                           #check_on_train_epoch_end=True
-                                           )
+                pl.callbacks.EarlyStopping(
+                    monitor='train_loss',  
+                    patience=self.pipeline.patience,
+                    min_delta=self.pipeline.min_delta,
+                    #check_on_train_epoch_end=True
+                )
             ],
             max_epochs=self.pipeline.max_epochs,
             accumulate_grad_batches=1,
             logger=pl.loggers.TensorBoardLogger(f'{directory}/logs/'),
             log_every_n_steps=1,
-            terminate_on_nan=True,
-            gpus=gpu
-        ), checkpoint
+        )
+        if gpu is not None:
+            trainer_kwargs.update(dict(accelerator="gpu", devices=[gpu] if isinstance(gpu, int) else gpu))
+        return pl.Trainer(**trainer_kwargs), checkpoint
 
     def run(self, exp_name, cg_file, n, dim, trial_index, hyperparams=None, gpu=None,
             lockinfo=os.environ.get('SLURM_JOB_ID', ''), verbose=False):
@@ -98,7 +100,7 @@ class NCMRunner(BaseRunner):
                 # Check if data file exists
                 graph_name = os.path.basename(cg_file).split(".")[0]  # Extract graph name (e.g., 'ex1')
                 data_file_path = f'/NCMCounterfactuals_test/dat/data/{n}/{graph_name}_TD2_10.csv'
-                if os.path.isfile(data_file_path) and True:
+                if os.path.isfile(data_file_path) and False:
                     print(f"Loading data from {data_file_path}")
                     # Load the data file
                     df = pd.read_csv(data_file_path, delimiter='\t')
@@ -134,12 +136,12 @@ class NCMRunner(BaseRunner):
                 for i, dat_do_set in enumerate(hyperparams["do-var-list"]):
                     name = evaluation.serialize_do(dat_do_set)
                     stored_metrics["true_{}".format(name)] = evaluation.probability_table(
-                        dat_m, n=1000000, do={k: expand_do(v, n=1000000) for (k, v) in dat_do_set.items()})
+                        dat_m, n=1000, do={k: expand_do(v, n=1000000) for (k, v) in dat_do_set.items()})
                     stored_metrics["dat_{}".format(name)] = evaluation.probability_table(
-                        dat_m, n=1000000, do={k: expand_do(v, n=1000000) for (k, v) in dat_do_set.items()},
+                        dat_m, n=1000, do={k: expand_do(v, n=1000000) for (k, v) in dat_do_set.items()},
                         dat=dat_sets[i])
                     if hyperparams['query-track'] == "avg_error":
-                        results = evaluation.compute_average_errors(m.generator, m.ncm, n=1000000, dat_dos = hyperparams["do-var-list"],true_pv=dat_sets[0])
+                        results = evaluation.compute_average_errors(m.generator, m.ncm, n=10000, dat_dos = hyperparams["do-var-list"],true_pv=dat_sets[0])
                         print(results)
                     #else:   
                         #start_metrics = evaluation.all_metrics(m.generator, m.ncm, hyperparams["do-var-list"], dat_sets,
@@ -163,7 +165,7 @@ class NCMRunner(BaseRunner):
                 results = {}
                 
                 if hyperparams['query-track'] == "avg_error":
-                    results = evaluation.compute_average_errors(m.generator, m.ncm, n=1000000, dat_dos = hyperparams["do-var-list"],true_pv=dat_sets[0])
+                    results = evaluation.compute_average_errors(m.generator, m.ncm, n=10000, dat_dos = hyperparams["do-var-list"],true_pv=dat_sets[0])
                 else:
                     results = evaluation.all_metrics(m.generator, m.ncm, hyperparams["do-var-list"], dat_sets,
                                                  n=1000000, query_track=hyperparams['eval-query'])
