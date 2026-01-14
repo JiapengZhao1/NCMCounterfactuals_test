@@ -92,7 +92,10 @@ class GANPipeline(BasePipeline):
     def _get_gradient_penalty(self, real_data, fake_data, disc_index):
         interpolated_data = dict()
         alpha = T.rand(self.ncm_batch_size, 1, device=self.device, requires_grad=True)
-        for V in real_data:
+
+        # 仅对 real/fake 共同拥有的变量做插值，避免 KeyError（例如 real 有 U1 但 fake 没有）
+        common_vars = [V for V in real_data.keys() if V in fake_data]
+        for V in common_vars:
             v_alpha = alpha.expand_as(real_data[V])
             interpolated_data[V] = v_alpha * real_data[V].detach() + (1 - v_alpha) * fake_data[V].detach()
 

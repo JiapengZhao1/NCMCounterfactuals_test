@@ -1,5 +1,6 @@
 import sys
 from contextlib import contextmanager
+import itertools
 
 import numpy as np
 import pandas as pd
@@ -7,6 +8,11 @@ import torch as T
 
 from src.scm.scm import expand_do
 from src.ds import CTF, CTFTerm
+
+
+def _filter_exogenous_keys(dat: dict):
+    """过滤外生变量(U*)，保证评价/合并时列集合一致。"""
+    return {k: v for (k, v) in dat.items() if not str(k).startswith('U')}
 
 
 def eval_query(m, ctf, n=1000000):
@@ -28,6 +34,9 @@ def probability_table(m=None, n=1000000, do={}, dat=None):
 
     if dat is None:
         dat = m(n, do=do, evaluating=True)
+
+    # 统一过滤掉 U*，避免某些模型/数据集包含 U 而另一些不包含
+    dat = _filter_exogenous_keys(dat)
 
     cols = dict()
     for v in sorted(dat):
@@ -251,31 +260,22 @@ def compute_average_errors(truth, estimated, n=1000000, dat_dos=[], true_pv=None
     """
         Compute the average errors for the query P(Y | do(X)).
 
-        Args:
-            truth: The true model (e.g., SCM or CTM).
-            estimated: The estimated model (e.g., GAN_NCM or another SCM).
-            n: Number of samples to generate.
-            dat_dos: List of dictionaries specifying interventions (e.g., [{"X": 0}, {"X": 1}]).
-
-        Returns:
-            dict: A dictionary containing the average errors for each combination of X and Y.
-        """
-    errors = {}
+        Returns a dict with per-(do, y) true/est/abs_err/signed_err plus avg_error.
+    """
+    results = {}
 
     # Convert dat_sets[0] (true_pv) to probability_table format if provided
     if true_pv is not None:
         true_pv = convert_dat_sets_to_probability_table(true_pv)
-        #print(true_pv)
+
+    # NOTE: existing code hardcodes do(X=0/1). Keep behavior but report more info.
+    per_key_abs_errors = []
 
     for i, do_set in enumerate([{"X": 0}, {"X": 1}]):
-        # Expand the do_set for the given number of samples
         expanded_do_dat = {k: expand_do(v, n) for (k, v) in do_set.items()}
 
-        # Generate probability tables for the true and estimated models
-        #true_table = probability_table(m=truth, n=n, do=expanded_do_dat)
-        true_table = true_pv if true_pv is not None else probability_table(truth, n=n, do=expanded_do_dat)
+        true_table = probability_table(truth, n=n, do=expanded_do_dat)
         estimated_table = probability_table(m=estimated, n=n, do=expanded_do_dat)
-        print(estimated_table)
 
         # Ensure Y is present
         y_column = None
@@ -283,28 +283,90 @@ def compute_average_errors(truth, estimated, n=1000000, dat_dos=[], true_pv=None
             if col.startswith("Y"):
                 y_column = col
                 break
-
         if y_column is None:
             raise KeyError("The required column for 'Y' is missing in the probability table.")
 
-        # Extract unique values of Y
         y_values = sorted(true_table[y_column].unique())
 
-        # Extract the intervention variable dynamically
-        intervention_var = list(do_set.keys())
-        intervention_value = list(do_set.values())
+        # Pretty do() descriptor
+        if len(do_set) == 1:
+            k0 = next(iter(do_set.keys()))
+            v0 = do_set[k0]
+            do_desc = f"do({k0}={v0})"
+        else:
+            do_desc = f"do({do_set})"
 
-        # Compute errors for each value of Y under the current do(X)
         for y in y_values:
-            # Extract probabilities for the true model
-            true_prob = true_table[true_table[y_column] == y]['P(V)'].sum()
+            true_prob = float(true_table[true_table[y_column] == y]['P(V)'].sum())
+            est_prob = float(estimated_table[estimated_table[y_column] == y]['P(V)'].sum())
 
-            # Extract probabilities for the estimated model
-            estimated_prob = estimated_table[estimated_table[y_column] == y]['P(V)'].sum()
+            signed_err = true_prob - est_prob
+            abs_err = abs(signed_err)
 
-            # Compute the absolute error
+            base = f"P(Y={y} | {do_desc})"
+            results[f"{base}_true"] = true_prob
+            results[f"{base}_est"] = est_prob
+            results[f"{base}_err"] = abs_err
+            results[f"{base}_signed_err"] = signed_err
+
+            per_key_abs_errors.append(abs_err)
+
+    results["avg_error"] = float(sum(per_key_abs_errors) / max(1, len(per_key_abs_errors)))
+    return results
+
+def compute_average_errors_n_dims(truth, estimated, n=1000000, dat_dos=None, true_pv=None, dims=1):
+    """
+    Compute the average errors for the query P(Y | do(X)) for multi-dimensional X and Y.
+
+    Args:
+        truth: The true model (e.g., SCM or CTM).
+        estimated: The estimated model (e.g., GAN_NCM or another SCM).
+        n: Number of samples to generate.
+        dat_dos: List of dictionaries specifying interventions (not used here, all configs are enumerated).
+        true_pv: Precomputed probability table for the true model.
+        dims: Number of dimensions for X and Y.
+
+    Returns:
+        dict: A dictionary containing the average errors for each combination of X and Y.
+    """
+    errors = {}
+
+    # Generate all possible binary configurations for X and Y
+    x_configs = list(itertools.product([0, 1], repeat=dims))
+    y_configs = list(itertools.product([0, 1], repeat=dims))
+
+    # Column names for X and Y
+    x_cols = [f"X{i}" for i in range(dims)]
+    y_cols = [f"Y{i}" for i in range(dims)]
+
+    # For each X configuration, compute do(X=x)
+    for x in x_configs:
+        do_set = {"X": T.tensor(x).float()}  # or np.array(x)
+        expanded_do_dat = {"X": expand_do(T.tensor(x).float(), n)}
+
+        # Generate probability tables for the true and estimated models
+        #true_table = true_pv if true_pv is not None else probability_table(truth, n=n, do=expanded_do_dat)
+        true_table = probability_table(truth, n=n, do=expanded_do_dat)
+        estimated_table = probability_table(m=estimated, n=n, do=expanded_do_dat)
+        #print(true_table)
+        #print(true_table[y_cols].head())
+        #print(true_table[y_cols].applymap(type).head()) 
+
+        # For each Y configuration, compute P(Y=y | do(X=x))
+        for y in y_configs:
+            # Create a boolean mask for rows where all Y columns match the current y config
+            #print(y_cols)
+            #print(true_table[y_cols])
+            #print(true_table[y_cols].head())
+            #print(true_table[y_cols].applymap(type).head())
+            mask = (true_table[y_cols].to_numpy() == np.array(y)).all(axis=1)
+            true_prob = true_table.loc[mask, 'P(V)'].sum()
+
+            mask_est = (estimated_table[y_cols].to_numpy() == np.array(y)).all(axis=1)
+            estimated_prob = estimated_table.loc[mask_est, 'P(V)'].sum()
+
             error = abs(true_prob - estimated_prob)
-            errors[f"P(Y={y} | do({intervention_var}={intervention_value}))"] = error
+            errors[f"P(Y={y} | do(X={x}))"] = error
 
     # Compute the average error across all interventions
     avg_error = sum(errors.values()) / len(errors)
@@ -313,6 +375,33 @@ def compute_average_errors(truth, estimated, n=1000000, dat_dos=[], true_pv=None
 
 
 def convert_dat_sets_to_probability_table(dat_sets):
+    """
+    Convert dat_sets format to probability_table format.
+
+    Args:
+        dat_sets (dict): A dictionary of tensors representing the dataset.
+
+    Returns:
+        pd.DataFrame: A DataFrame in the probability_table format with descriptive column names.
+    """
+    # Convert tensors to 1D arrays and create a DataFrame with variable names as column names
+    df = pd.DataFrame({key: value.squeeze().tolist() for key, value in dat_sets.items()})
+
+    # Group by unique combinations of variable values and compute probabilities
+    probability_table = (
+        df.groupby(list(df.columns))  # Group by all columns (unique combinations of variable values)
+        .size()  # Count occurrences of each combination
+        .div(len(df))  # Divide by total rows to compute probabilities
+        .rename('P(V)')  # Rename the computed column to 'P(V)'
+        .reset_index()  # Reset the index to make it a flat DataFrame
+    )
+
+    # Rename columns to include variable names explicitly
+    probability_table.columns = [f"{col}" if col != 'P(V)' else col for col in probability_table.columns]
+
+    return probability_table
+
+def convert_dat_sets_to_probability_table_n_dims(dat_sets):
     """
     Convert dat_sets format to probability_table format.
 

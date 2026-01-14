@@ -12,6 +12,8 @@ import pytorch_lightning as pl
 from src.metric import evaluation
 from src.ds.causal_graph import CausalGraph
 from src.scm.ctm import CTM
+from src.scm.cpt import CPT
+from src.scm.cpt import parse_smile_cpt
 from src.scm.scm import expand_do
 from .base_runner import BaseRunner
 
@@ -58,7 +60,46 @@ class NCMRunner(BaseRunner):
                 # return if best.th is generated (i.e. training is already complete)
                 if os.path.isfile(f'{d}/best.th'):
                     print('[done]', d)
-                    return
+                    # Load the trained model and data
+                    cg = CausalGraph.read(cg_file)
+                    if self.dat_model is CTM:
+                        dat_m = self.dat_model(
+                            cg,
+                            v_size={k: dim for k in cg},
+                            regions=hyperparams.get('regions', 20),
+                            c2_scale=hyperparams.get('c2-scale', 1.0),
+                            batch_size=hyperparams.get('gen-bs', 10000),
+                            seed=0
+                        )
+                        dat_sets = []
+                        for dat_do_set in hyperparams["do-var-list"]:
+                            expand_do_set = {k: expand_do(v, n=n) for (k, v) in dat_do_set.items()}
+                            dat_sets.append(dat_m(n=n, do=expand_do_set))  # Generate data
+                    elif self.dat_model is CPT:
+                        graph_name = os.path.basename(cg_file).split(".")[0]
+                        data_file_path = f'/home/NCMCounterfactuals_test/dat/true_model/{n}/{graph_name}_TD4_10.xdsl'
+                        print(f"Loading CPT from {data_file_path}")
+                        variables, cpt_tables, parents, state_sizes = parse_smile_cpt(data_file_path)
+                        dat_m = self.dat_model(variables, cpt_tables, parents, state_sizes, seed=0)
+                        dat_sets = []
+                        for dat_do_set in hyperparams["do-var-list"]:
+                            expand_do_set = {k: expand_do(v, n=n) for (k, v) in dat_do_set.items()}
+                            dat_sets.append(dat_m(n=n, do=expand_do_set))
+                    else:
+                        dat_m = self.dat_model(cg, dim=dim, seed=0)
+                        dat_sets = []
+                        for dat_do_set in hyperparams["do-var-list"]:
+                            expand_do_set = {k: expand_do(v, n=n) for (k, v) in dat_do_set.items()}
+                            dat_sets.append(dat_m(n=n, do=expand_do_set))
+                    m = self.pipeline(dat_m, hyperparams["do-var-list"], dat_sets, cg, dim, hyperparams=hyperparams,
+                                      ncm_model=self.ncm_model)
+                    ckpt = T.load(f'{d}/best.th')
+                    m.load_state_dict(ckpt)
+                    # Compute average errors and save as results_2.json
+                    results_2 = evaluation.compute_average_errors(m.generator, m.ncm, n=100000, dat_dos=hyperparams["do-var-list"])
+                    with open(f'{d}/results_2.json', 'w') as file:
+                        json.dump(results_2, file)
+                    return d  # <--- RETURN IMMEDIATELY, DO NOT RETRAIN
 
                 # since training is not complete, delete all directory files except for the lock
                 print('[running]', d)
@@ -94,23 +135,36 @@ class NCMRunner(BaseRunner):
                                             c2_scale=hyperparams.get('c2-scale', 1.0),
                                             batch_size=hyperparams.get('gen-bs', 10000),
                                             seed=seed)
+                elif self.dat_model is CPT:
+                    graph_name = os.path.basename(cg_file).split(".")[0]  # Extract graph name (e.g., 'ex1')
+                    data_file_path = f'/home/NCMCounterfactuals_test/dat/true_model/{n}/{graph_name}_TD4_10.xdsl'
+                    print(f"Loading CPT from {data_file_path}")
+                    variables, cpt_tables, parents, state_sizes = parse_smile_cpt(data_file_path)
+                    dat_m = self.dat_model(variables, cpt_tables, parents, state_sizes, seed=seed)
                 else:
                     dat_m = self.dat_model(cg, dim=dim, seed=seed)
 
                 # Check if data file exists
                 graph_name = os.path.basename(cg_file).split(".")[0]  # Extract graph name (e.g., 'ex1')
-                data_file_path = f'/NCMCounterfactuals_test/dat/data/{n}/{graph_name}_TD2_10.csv'
-                if os.path.isfile(data_file_path) and False:
+                data_file_path = f'/home/NCMCounterfactuals_test/dat/data/{n}/{graph_name}_TD4_10.csv'
+                #print(f"Checking for data file at: {data_file_path}")
+                #print(os.path.isfile(data_file_path))
+                if os.path.isfile(data_file_path):
                     print(f"Loading data from {data_file_path}")
                     # Load the data file
                     df = pd.read_csv(data_file_path, delimiter='\t')
-                    
+
+                    # Filter out exogenous variables if present (U*) to match NCM outputs
+                    u_cols = [c for c in df.columns if str(c).startswith('U')]
+                    if len(u_cols) > 0:
+                        df = df.drop(columns=u_cols)
+
                     # Adjust the data format to match the required structure
                     dat_sets = [{
-                        col: T.tensor(df[col].map({'a': 0, 'b': 1}).values).unsqueeze(1)
+                        col: T.tensor(df[col].map({'a': 0, 'b': 1, 'c':2, 'd':3, 'State0':0, 'State1':1, 'State2':2, 'State3':3}).values).unsqueeze(1)
                         for col in df.columns
                     }]
-                    print(dat_sets)
+                    #print(dat_sets)
                 else:
                     print("Generating data as no pre-existing file was found.")
                     dat_sets = []
@@ -133,6 +187,7 @@ class NCMRunner(BaseRunner):
                 # print info
                 print("Calculating metrics")
                 stored_metrics = dict()
+                start_metrics = None
                 for i, dat_do_set in enumerate(hyperparams["do-var-list"]):
                     name = evaluation.serialize_do(dat_do_set)
                     stored_metrics["true_{}".format(name)] = evaluation.probability_table(
@@ -141,8 +196,10 @@ class NCMRunner(BaseRunner):
                         dat_m, n=1000, do={k: expand_do(v, n=1000000) for (k, v) in dat_do_set.items()},
                         dat=dat_sets[i])
                     if hyperparams['query-track'] == "avg_error":
-                        results = evaluation.compute_average_errors(m.generator, m.ncm, n=10000, dat_dos = hyperparams["do-var-list"],true_pv=dat_sets[0])
-                        print(results)
+                        if hyperparams["dim"] == 1:
+                            results = evaluation.compute_average_errors(m.generator, m.ncm, n=10000)
+                        else:
+                            results = evaluation.compute_average_errors_n_dims(m.generator, m.ncm, n=10000, dims=hyperparams["dim"])
                     #else:   
                         #start_metrics = evaluation.all_metrics(m.generator, m.ncm, hyperparams["do-var-list"], dat_sets,
                                                        #n=1000000, stored=stored_metrics,
@@ -165,7 +222,10 @@ class NCMRunner(BaseRunner):
                 results = {}
                 
                 if hyperparams['query-track'] == "avg_error":
-                    results = evaluation.compute_average_errors(m.generator, m.ncm, n=10000, dat_dos = hyperparams["do-var-list"],true_pv=dat_sets[0])
+                    if hyperparams["dim"] == 1:
+                        results = evaluation.compute_average_errors(m.generator, m.ncm, n=10000)
+                    else:
+                        results = evaluation.compute_average_errors_n_dims(m.generator, m.ncm, n=10000, dims=hyperparams["dim"])
                 else:
                     results = evaluation.all_metrics(m.generator, m.ncm, hyperparams["do-var-list"], dat_sets,
                                                  n=1000000, query_track=hyperparams['eval-query'])
@@ -190,4 +250,5 @@ class NCMRunner(BaseRunner):
                 os.makedirs(e.rsplit('/', 1)[0], exist_ok=True)
                 shutil.move(d, e)
                 print(f'moved {d} to {e}')
+                #print(f'Exception occurred in {d}, but keeping all files unchanged.')
                 raise

@@ -16,6 +16,7 @@ torch.set_float32_matmul_precision('high')  # 或 'medium'
 from src.pipeline import DivergencePipeline, GANPipeline, MLEPipeline
 from src.scm.model_classes import XORModel, RoundModel
 from src.scm.ctm import CTM
+from src.scm.cpt import CPT
 from src.scm.ncm import FF_NCM, GAN_NCM, MLE_NCM
 from src.run import NCMRunner, NCMMinMaxRunner
 from src.ds.causal_graph import CausalGraph
@@ -30,6 +31,7 @@ valid_pipelines = {
 }
 valid_generators = {
     "ctm": CTM,
+    "cpt": CPT,
     "xor": XORModel,
     "round": RoundModel
 }
@@ -47,7 +49,8 @@ valid_graphs = {"backdoor", "bow", "frontdoor", "napkin", "simple", "bdm", "med"
                 "med_c1", "med_c2",
                 "expl_xm", "expl_xm_dox", "expl_xy", "expl_xy_dox", "expl_my", "expl_my_dox",
                 "exp1", "exp3", "exp5", "exp8","exp2", "exp4", "exp6", "exp7",
-                "5-ch", "9-ch", "25-ch", "49-ch", "99-ch", "9-d", "17-d", "65-d", "6-cc", "15-cc", "45-cc"}
+                "5-ch", "9-ch", "25-ch", "49-ch", "99-ch", "9-d", "17-d", "65-d", "6-cc", "15-cc", "45-cc",
+                "49_chain", "99_chain", "17_diamond", "65_diamond","6_cone_cloud", "15_cone_cloud"}
 
 graph_sets = {
     "all": {"backdoor", "bow", "frontdoor", "napkin", "simple", "med", "expl", "zid_a", "zid_b", "zid_c",
@@ -60,7 +63,9 @@ graph_sets = {
     "large": {"5-ch", "9-ch", "25-ch", "49-ch", "99-ch", "9-d", "17-d", "65-d", "6-cc", "15-cc", "45-cc"},
     "5ch": {"5-ch", "9-ch", "25-ch", "49-ch", "99-ch"},
     "3d": {"9-d", "17-d", "65-d"},
-    "2cc": {"6-cc", "15-cc"}
+    "2cc": {"6-cc", "15-cc"},
+    "6large": {"49_chain", "99_chain", "17_diamond", "65_diamond","6_cone_cloud", "15_cone_cloud"},
+
 }
 
 valid_queries = {"ate", "ett", "nde", "ctfde", "avg_error"}
@@ -133,13 +138,19 @@ if query_choice is not None:
 
 if query_track is not None:
     query_track = query_track.lower()
-
+print("Experiment Name: {}".format(args.name))
 assert pipeline_choice in valid_pipelines
+print("Using pipeline: {}".format(pipeline_choice))
 assert gen_choice in valid_generators
+print("Using data generator: {}".format(gen_choice))
 assert graph_choice in valid_graphs or graph_choice in graph_sets
+print("Using graph(s): {}".format(graph_choice))
 assert gan_choice in gan_choices
+print("Using GAN mode: {}".format(gan_choice))
 assert query_choice is None or query_choice in valid_queries
+print("Using identification query: {}".format(query_choice))
 assert query_track is None or query_track in valid_queries
+print("Using tracking query: {}".format(query_track))
 
 if query_choice == "avg_error":
     print("Computing average errors for P(Y | do(X))...")
@@ -258,7 +269,7 @@ for graph in graph_set:
             results = {}
             while True:
                 # Start timing
-                start_time = time.time()    
+                start_time = time.time()
                 cg_file = "dat/cg/{}.cg".format(graph)
                 try:
                     if query_choice is None and pipeline_choice:
@@ -274,11 +285,14 @@ for graph in graph_set:
                     end_time = time.time()
                     elapsed_time = end_time - start_time
 
-                    # Add elapsed_time to the results
-                    results["elapsed_time"] = elapsed_time
+                    # If the run was locked/skipped, runner.run() returns None
+                    if output_dir is None:
+                        print(f"[skipped] trial_index={i} (output dir locked or already running)")
+                        break
 
                     # Load metrics from the runner's output directory
-                    with open(f'{output_dir}/results.json', 'r') as file:
+                    results["elapsed_time_2"] = elapsed_time
+                    with open(f"{output_dir}/results.json", "r") as file:
                         metrics = json.load(file)
 
                     # Merge metrics into the results dictionary
@@ -288,12 +302,12 @@ for graph in graph_set:
                     print(f"Total execution time: {elapsed_time:.2f} seconds.")
 
                     # Save results to results.json in the correct directory
-                    with open(f'{output_dir}/results.json', 'w') as file:
+                    with open(f"{output_dir}/results.json", "w") as file:
                         json.dump(results, file)
 
                     break
                 except Exception as e:
                     print("Exception occurred:", e)
                     traceback.print_exc()
-                    print('[failed]', i, args.name)
+                    print("[failed]", i, args.name)
                     raise

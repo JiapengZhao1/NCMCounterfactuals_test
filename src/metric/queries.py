@@ -36,7 +36,8 @@ def is_q_id_in_G(graph_name, query_name):
                 "expl_dox", "expl_xm_dox", "expl_xy_dox"},
         "CTFDE": {"backdoor", "frontdoor", "simple", "m", "med", "expl", "expl_dox"},
         "AVG_ERROR": {"exp1", "exp2", "exp3", "exp4", "exp5", "exp6", "exp7", "exp8",
-                      "5-ch", "9-ch", "25-ch", "49-ch", "99-ch", "9-d", "17-d", "65-d", "6-cc", "15-cc", "45-cc"}  # Add graphs for avg_error
+                      "5-ch", "9-ch", "25-ch", "49-ch", "99-ch", "9-d", "17-d", "65-d", "6-cc", "15-cc", "45-cc",
+                      "49_chain", "99_chain", "17_diamond", "65_diamond","6_cone_cloud", "15_cone_cloud"}  # Add graphs for avg_error
     }
 
     if query_name not in id_graphs:
