@@ -7,6 +7,7 @@ from src.scm.distribution.continuous_distribution import UniformDistribution
 from src.scm.nn.gumbel_mlp import GumbelMLP
 from src.scm.scm import SCM, expand_do
 from src.ds.counterfactual import CTF
+from src.scm.representation import index_to_onehot, onehot_to_index
 
 
 class MLE_NCM(SCM):
@@ -17,6 +18,12 @@ class MLE_NCM(SCM):
             hyperparams = dict()
 
         self.cg = cg
+
+        # categorical domain size (all observed variables share the same K)
+        self.domain_k = hyperparams.get('domain-sizes', None)
+        if self.domain_k is not None:
+            self.domain_k = int(self.domain_k)
+
         self.u_size = {k: u_size.get(k, default_u_size) for k in self.cg.c2}
         self.v_size = {k: v_size.get(k, default_v_size) for k in self.cg}
         super().__init__(
@@ -32,20 +39,53 @@ class MLE_NCM(SCM):
                 for k in cg}),
             pu=UniformDistribution(self.cg.c2, self.u_size))
 
+    def convert_evaluation(self, samples):
+        # categorical mode: internal representation is one-hot/soft; external is index [n,1]
+        if self.domain_k is not None:
+            return {k: onehot_to_index(samples[k]).float() for k in samples}
+        return samples
+
     def get_space(self, fixed):
+        # Legacy: enumerate bit-vectors of length v_size[k]
+        if self.domain_k is None:
+            vals = []
+            for k in self.v:
+                if k in fixed:
+                    vals.append([fixed[k]])
+                else:
+                    vals.append(list(range(2 ** self.v_size[k])))
+
+            space = []
+            for val_item in itertools.product(*vals):
+                val_dict = dict()
+                for i, k in enumerate(self.v):
+                    val_dict[k] = self.dec_to_bin(T.as_tensor(val_item[i]), self.v_size[k])
+                space.append(val_dict)
+            return space
+
+        # Categorical: enumerate one-hot vectors of size K
+        K = int(self.domain_k)
         vals = []
         for k in self.v:
             if k in fixed:
                 vals.append([fixed[k]])
             else:
-                vals.append(list(range(2 ** self.v_size[k])))
+                vals.append(list(range(K)))
 
         space = []
         for val_item in itertools.product(*vals):
-            val_dict = dict()
+            row = {}
             for i, k in enumerate(self.v):
-                val_dict[k] = self.dec_to_bin(T.as_tensor(val_item[i]), self.v_size[k])
-            space.append(val_dict)
+                if k in fixed:
+                    v = fixed[k]
+                    # accept internal index or external one-hot
+                    if T.is_tensor(v) and v.dim() == 2 and v.shape[1] == K:
+                        row[k] = v.float()
+                    else:
+                        row[k] = index_to_onehot(T.as_tensor(v).view(1, 1), K).squeeze(0)
+                else:
+                    row[k] = index_to_onehot(T.as_tensor(val_item[i]).view(1, 1), K).squeeze(0)
+            space.append(row)
         return space
 
     def likelihood(self, v_vals, u=None, skip=set(), mc_size=1):
@@ -57,11 +97,49 @@ class MLE_NCM(SCM):
             mc_size = u[next(iter(u))].shape[0]
 
         expanded_vals = dict()
-        for (k, v) in v_vals.items():
-            if not T.is_tensor(v) or len(v.shape) == 1:
-                expanded_vals[k] = expand_do(v, mc_size).float()
-            else:
-                expanded_vals[k] = v.to(self.device_param)
+
+        if self.domain_k is None:
+            # legacy behavior
+            for (k, v) in v_vals.items():
+                if not T.is_tensor(v) or len(v.shape) == 1:
+                    expanded_vals[k] = expand_do(v, mc_size).float()
+                else:
+                    expanded_vals[k] = v.to(self.device_param)
+        else:
+            # categorical behavior: ensure each observed variable is one-hot [mc_size,K]
+            K = int(self.domain_k)
+            for (k, v) in v_vals.items():
+                if not T.is_tensor(v):
+                    v = T.as_tensor(v)
+
+                # one-hot vector for a single sample: [K] -> [mc_size,K]
+                if v.dim() == 1 and v.shape[0] == K:
+                    expanded_vals[k] = expand_do(v.view(1, K), mc_size).to(self.device_param).float()
+                    continue
+
+                # already [mc,K]
+                if v.dim() == 2 and v.shape[1] == K:
+                    # if it's a single row, expand it
+                    if v.shape[0] == 1 and mc_size != 1:
+                        expanded_vals[k] = expand_do(v, mc_size).to(self.device_param).float()
+                    else:
+                        expanded_vals[k] = v.to(self.device_param).float()
+                    continue
+
+                # index [mc,1] or scalar
+                if v.dim() == 0:
+                    v = v.view(1, 1)
+                elif v.dim() == 1:
+                    v = v.view(-1, 1)
+
+                if v.dim() == 2 and v.shape[1] == 1:
+                    if v.shape[0] == 1:
+                        v = expand_do(v, mc_size)
+                    expanded_vals[k] = index_to_onehot(v.to(self.device_param), K)
+                else:
+                    # assume already broadcastable
+                    expanded_vals[k] = v.to(self.device_param)
+
         log_pv = T.zeros(mc_size).to(self.device_param)
         for k in self.v:
             if k not in skip:
@@ -73,8 +151,24 @@ class MLE_NCM(SCM):
         assert not set(do.keys()).difference(self.v)
         assert (n is None) != (u is None)
 
-        for k in do:
-            do[k] = do[k].to(self.device_param)
+        if self.domain_k is None:
+            for k in do:
+                do[k] = do[k].to(self.device_param)
+        else:
+            # categorical: accept do-values as external index (scalar / [n,1]) or one-hot ([n,K])
+            K = int(self.domain_k)
+            do_oh = {}
+            for k, v in do.items():
+                if T.is_tensor(v) and v.dim() == 2 and v.shape[1] == K:
+                    do_oh[k] = v.to(self.device_param).float()
+                else:
+                    # allow scalar, [n], [n,1]
+                    if T.is_tensor(v):
+                        v_t = v.to(self.device_param.device)
+                    else:
+                        v_t = T.as_tensor(v).to(self.device_param.device)
+                    do_oh[k] = index_to_onehot(v_t, K)
+            do = do_oh
 
         if u is None:
             u = self.pu.sample(n)

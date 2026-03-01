@@ -8,6 +8,7 @@ import torch as T
 
 from src.scm.scm import expand_do
 from src.ds import CTF, CTFTerm
+from src.scm.representation import maybe_onehot_to_index
 
 
 def _filter_exogenous_keys(dat: dict):
@@ -37,6 +38,10 @@ def probability_table(m=None, n=1000000, do={}, dat=None):
 
     # 统一过滤掉 U*，避免某些模型/数据集包含 U 而另一些不包含
     dat = _filter_exogenous_keys(dat)
+
+    # If a variable is represented as one-hot/soft vector ([n,k], k>1),
+    # convert it to external index ([n,1]) for probability table construction.
+    dat = {k: maybe_onehot_to_index(v) for (k, v) in dat.items()}
 
     cols = dict()
     for v in sorted(dat):
@@ -257,46 +262,66 @@ def naive_kl(t_table, m_table):
 
 
 def compute_average_errors(truth, estimated, n=1000000, dat_dos=[], true_pv=None):
-    """
-        Compute the average errors for the query P(Y | do(X)).
+    """Compute average errors for the family of queries P(Y | do(X)).
 
-        Returns a dict with per-(do, y) true/est/abs_err/signed_err plus avg_error.
+    This function supports both legacy/binary mode and categorical mode.
+
+    - Legacy mode (no domain_k): assumes X,Y are binary and evaluates do(X=0/1) with Y in {0,1}.
+    - Categorical mode (domain_k K): evaluates do(X=x) for x in {0..K-1} with Y in {0..K-1}.
+
+    Returns a dict with per-(do, y) true/est/abs_err/signed_err plus avg_error.
     """
+
+    # Determine domain size K if either model exposes it.
+    domain_k = getattr(estimated, 'domain_k', None)
+    if domain_k is None:
+        domain_k = getattr(truth, 'domain_k', None)
+
     results = {}
 
     # Convert dat_sets[0] (true_pv) to probability_table format if provided
     if true_pv is not None:
         true_pv = convert_dat_sets_to_probability_table(true_pv)
 
-    # NOTE: existing code hardcodes do(X=0/1). Keep behavior but report more info.
+    # Decide intervention/value grids
+    if domain_k is None:
+        x_values = [0, 1]
+        y_values_hint = [0, 1]
+    else:
+        K = int(domain_k)
+        x_values = list(range(K))
+        y_values_hint = list(range(K))
+
     per_key_abs_errors = []
 
-    for i, do_set in enumerate([{"X": 0}, {"X": 1}]):
+    for x in x_values:
+        do_set = {"X": x}
         expanded_do_dat = {k: expand_do(v, n) for (k, v) in do_set.items()}
 
+        # Build probability tables from samples (probability_table already handles onehot->index)
         true_table = probability_table(truth, n=n, do=expanded_do_dat)
         estimated_table = probability_table(m=estimated, n=n, do=expanded_do_dat)
 
-        # Ensure Y is present
+        # Determine the actual Y column name used in probability_table.
+        # In categorical mode we expect a single 'Y' column (index). In legacy mode,
+        # it is also typically 'Y' (dim=1). We defensively pick the first column starting with 'Y'.
         y_column = None
         for col in true_table.columns:
-            if col.startswith("Y"):
+            if str(col).startswith("Y") and col != 'P(V)':
                 y_column = col
                 break
         if y_column is None:
             raise KeyError("The required column for 'Y' is missing in the probability table.")
 
-        y_values = sorted(true_table[y_column].unique())
+        # If table contains a subset of values (rare for small n), rely on observed values;
+        # otherwise, use the hint from domain_k/binary.
+        observed_y = sorted(true_table[y_column].unique().tolist())
+        y_values = observed_y if len(observed_y) > 0 else y_values_hint
 
-        # Pretty do() descriptor
-        if len(do_set) == 1:
-            k0 = next(iter(do_set.keys()))
-            v0 = do_set[k0]
-            do_desc = f"do({k0}={v0})"
-        else:
-            do_desc = f"do({do_set})"
+        do_desc = f"do(X={x})"
 
         for y in y_values:
+            # Probability table stores discrete values as scalars (float/int). Use == comparison.
             true_prob = float(true_table[true_table[y_column] == y]['P(V)'].sum())
             est_prob = float(estimated_table[estimated_table[y_column] == y]['P(V)'].sum())
 

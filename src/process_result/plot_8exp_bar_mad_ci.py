@@ -22,8 +22,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-DEFAULT_CSV = "/home/NCMCounterfactuals_test/out/combined/8exp/combined_8exp_wide.csv"
-DEFAULT_OUTDIR = "/home/NCMCounterfactuals_test/out/combined/8exp"
+DEFAULT_CSV = "/home/NCMCounterfactuals_test/out/combined/6large_cpt_onehot/combined_6large_cpt_onehot_wide.csv"
+DEFAULT_OUTDIR = "/home/NCMCounterfactuals_test/out/combined/6large_cpt_onehot"
 
 
 def _method_columns(method: str) -> Dict[str, str]:

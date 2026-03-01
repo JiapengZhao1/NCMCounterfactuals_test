@@ -27,10 +27,17 @@ class GANPipeline(BasePipeline):
         if hyperparams is None:
             hyperparams = dict()
 
-        if hyperparams['query-track'] != "avg_error":
-            v_size = {k: 1 if k in {'X', 'Y', 'M', 'W'} else dim for k in cg}
+        domain_k = hyperparams.get('domain-sizes', None)
+        if domain_k is not None:
+            # categorical mode: internal representation is one-hot of size K for all observed variables
+            domain_k = int(domain_k)
+            v_size = {k: domain_k for k in cg}
         else:
-            v_size = {k: dim for k in cg}
+            # legacy behavior
+            if hyperparams['query-track'] != "avg_error":
+                v_size = {k: 1 if k in {'X', 'Y', 'M', 'W'} else dim for k in cg}
+            else:
+                v_size = {k: dim for k in cg}
         ncm = ncm_model(cg, v_size=v_size, default_u_size=hyperparams.get('u-size', 1), hyperparams=hyperparams,
                         gen_use_sigmoid=hyperparams['gen-sigmoid'],
                         disc_use_sigmoid=(hyperparams.get("gan-mode", "NA") != "wgan"))

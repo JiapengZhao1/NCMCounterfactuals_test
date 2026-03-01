@@ -118,6 +118,16 @@ parser.add_argument('--graph', '-G', default="all", help="name of preset graph")
 parser.add_argument('--n-trials', '-t', type=int, default=1, help="number of trials")
 parser.add_argument('--n-samples', '-n', type=int, default=10000, help="number of samples (default: 10000)")
 parser.add_argument('--dim', '-d', type=int, default=1, help="dimensionality of variables (default: 1)") # does it mean observed variable sizes?
+parser.add_argument(
+    '--domain-sizes',
+    type=int,
+    default=None,
+    help="categorical domain size K for all observed variables V (external index 0..K-1, internal one-hot size K). If unset, uses legacy --dim behavior.")
+parser.add_argument(
+    '--gumbel-tau',
+    type=float,
+    default=1.0,
+    help="Gumbel-Softmax temperature for categorical sampling (only used when --domain-sizes is set).")
 parser.add_argument('--gpu', help="GPU to use")
 
 parser.add_argument('--verbose', action="store_true", help="print more information")
@@ -194,6 +204,8 @@ hyperparams = {
     'positivity': not args.no_positivity,
     'n-samples': args.n_samples,
     'dim': args.dim,
+    'domain-sizes': args.domain_sizes,
+    'gumbel-tau': args.gumbel_tau,
 }
 
 if pipeline_choice == "gan":

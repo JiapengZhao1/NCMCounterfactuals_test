@@ -114,3 +114,52 @@ python -m src.main mle_6large_cpt1 mle --data-bs 4096 --ncm-bs 4096 --gen CPT --
 #GAN 6large 5 trails
 python -m src.main est_6large_cpt1 gan --gen CPT --lr 0.00002 --data-bs 1000 --ncm-bs 1000 --h-size 64 --u-size 2 --layer-norm --gan-mode wgangp --d-iters 1 --query-track avg_error --single-disc --gen-sigmoid --mc-sample-size 10000 -G 6large -t 5 -n 1000 -d 1 --gpu 0
 python -m src.main est_6large_cpt1 gan --gen CPT --lr 0.00002 --data-bs 4096 --ncm-bs 4096 --h-size 64 --u-size 2 --layer-norm --gan-mode wgangp --d-iters 1 --query-track avg_error --single-disc --gen-sigmoid --mc-sample-size 10000 -G 6large -t 5 -n 10000 -d 1 --gpu 0
+
+
+
+#onehot runs
+
+#GAN 8exp 10 trails onehot
+python -m src.main est_8exp_cpt_onehot1 gan --gen CPT --lr 0.00002 --data-bs 256 --ncm-bs 256 --h-size 64 --u-size 2 --layer-norm --gan-mode wgangp --d-iters 1 --query-track avg_error --single-disc --mc-sample-size 5000 -G 8exp -t 10 -n 100 -d 1 --domain-sizes 2 --gumbel-tau 1.0 --gpu 0
+python -m src.main est_8exp_cpt_onehot1 gan --gen CPT --lr 0.00002 --data-bs 256 --ncm-bs 256 --h-size 64 --u-size 2 --layer-norm --gan-mode wgangp --d-iters 1 --query-track avg_error --single-disc --mc-sample-size 5000 -G 8exp -t 10 -n 1000 -d 1 --domain-sizes 2 --gumbel-tau 1.0 --gpu 0
+
+
+#GAN 6large 5 trails onehot
+python -m src.main smoke_categ_gan gan --gen CPT --lr 0.00002 --data-bs 64 --ncm-bs 64 --h-size 64 --u-size 2 --layer-norm --gan-mode wgangp --d-iters 1 --query-track avg_error --single-disc --mc-sample-size 2000 -G 6_cone_cloud -t 1 -n 1000 -d 1 --domain-sizes 4 --gumbel-tau 1.0
+
+python -m src.main est_6large_cpt_onehot1 gan --gen CPT --lr 0.00002 --data-bs 1000 --ncm-bs 1000 --h-size 64 --u-size 2 --layer-norm --gan-mode wgangp --d-iters 1 --query-track avg_error --single-disc --gen-sigmoid --mc-sample-size 10000 -G 6large -t 5 -n 1000 -d 1 --domain-sizes 4 --gumbel-tau 1.0 --gpu 0
+python -m src.main est_6large_cpt_onehot1 gan --gen CPT --lr 0.00002 --data-bs 4096 --ncm-bs 4096 --h-size 64 --u-size 2 --layer-norm --gan-mode wgangp --d-iters 1 --query-track avg_error --single-disc --gen-sigmoid --mc-sample-size 10000 -G 6large -t 5 -n 10000 -d 1 --domain-sizes 4 --gumbel-tau 1.0 --gpu 0
+
+
+#MLE exp8 10 trails
+python -m src.main mle_exp1_test2 mle --full-batch --gen CPT --h-size 64 --query-track avg_error --max-query-iters 1000 --mc-sample-size 1000 -G exp1 -t 1 -n 100 -d 1 --gpu 0 --domain-sizes 2 --gumbel-tau 1.0
+
+
+python -m src.main mle_8exp_cpt_onehot1 mle --full-batch --gen CPT --h-size 64 --query-track avg_error --max-query-iters 1000 --mc-sample-size 10000 -G 8exp -t 10 -n 100 -d 1 --gpu 0 --domain-sizes 2 --gumbel-tau 1.0
+python -m src.main mle_8exp_cpt_onehot1 mle --full-batch --gen CPT --h-size 64 --query-track avg_error --max-query-iters 1000 --mc-sample-size 10000 -G 8exp -t 10 -n 1000 -d 1 --gpu 0 --domain-sizes 2 --gumbel-tau 1.0
+
+
+#MLE 6large 5 trails
+#test
+python -m src.main mle_test1 mle --data-bs 128 --ncm-bs 128 --gen CPT --h-size 64 --query-track avg_error --max-query-iters 1000 --mc-sample-size 200 -G 6_cone_cloud -t 5 -n 1000 -d 1 --gpu 0 --domain-sizes 4 --gumbel-tau 1.0
+
+
+python -m src.main mle_6large_cpt_onehot1 mle --data-bs 128 --ncm-bs 128 --gen CPT --h-size 64 --query-track avg_error --max-query-iters 1000 --mc-sample-size 1000 -G 6large -t 5 -n 1000 -d 1 --gpu 0 --domain-sizes 4 --gumbel-tau 1.0
+python -m src.main mle_6large_cpt_onthot1 mle --data-bs 256 --ncm-bs 256 --gen CPT --h-size 64 --query-track avg_error --max-query-iters 1000 --mc-sample-size 1000 -G 6large -t 5 -n 10000 -d 1 --gpu 0 --domain-sizes 4 --gumbel-tau 1.0
+
+#MLE 6large single graph 1000
+python -m src.main MLE_cpt_6_cone_cloud mle --data-bs 128 --ncm-bs 128 --gen CPT --h-size 64 --query-track avg_error --max-query-iters 1000 --mc-sample-size 200 -G 6_cone_cloud -t 5 -n 1000 -d 1 --gpu 0 --domain-sizes 4 --gumbel-tau 1.0
+python -m src.main MLE_cpt_15_cone_cloud_1 mle --data-bs 128 --ncm-bs 128 --gen CPT --h-size 64 --query-track avg_error --max-query-iters 1000 --mc-sample-size 200 -G 15_cone_cloud -t 1 -n 1000 -d 1 --gpu 0 --domain-sizes 4 --gumbel-tau 1.0
+python -m src.main MLE_cpt_49_chain_1 mle --data-bs 256 --ncm-bs 256 --gen CPT --h-size 64 --query-track avg_error --max-query-iters 1000 --mc-sample-size 200 -G 49_chain -t 5 -n 1000 -d 1 --gpu 0 --domain-sizes 4 --gumbel-tau 1.0
+python -m src.main MLE_cpt_65_diamond_2 mle --data-bs 256 --ncm-bs 256 --gen CPT --h-size 64 --query-track avg_error --max-query-iters 1000 --mc-sample-size 200 -G 65_diamond -t 2 -n 1000 -d 1 --gpu 0 --domain-sizes 4 --gumbel-tau 1.0
+
+python -m src.main MLE_cpt_ema_15_cone_cloud1 mle --data-bs 128 --ncm-bs 128 --gen CPT --h-size 64 --query-track avg_error --max-query-iters 1000 --mc-sample-size 200 -G 15_cone_cloud -t 1 -n 1000 -d 1 --gpu 0 --domain-sizes 4 --gumbel-tau 1.0
+python -m src.main MLE_cpt_49_chain1 mle --data-bs 128 --ncm-bs 128 --gen CPT --h-size 64 --query-track avg_error --max-query-iters 1000 --mc-sample-size 200 -G 49_chain -t 1 -n 1000 -d 1 --gpu 0 --domain-sizes 4 --gumbel-tau 1.0
+python -m src.main MLE_cpt_65_diamond1 mle --data-bs 128 --ncm-bs 128 --gen CPT --h-size 64 --query-track avg_error --max-query-iters 1000 --mc-sample-size 200 -G 65_diamond -t 1 -n 1000 -d 1 --gpu 0 --domain-sizes 4 --gumbel-tau 1.0
+
+python -m src.main MLE_cpt_15_cone_cloud2 mle --data-bs 128 --ncm-bs 128 --gen CPT --h-size 64 --query-track avg_error --max-query-iters 1000 --mc-sample-size 200 -G 15_cone_cloud -t 1 -n 1000 -d 1 --gpu 0 --domain-sizes 4 --gumbel-tau 1.0
+python -m src.main MLE_cpt_49_chain2 mle --data-bs 128 --ncm-bs 128 --gen CPT --h-size 64 --query-track avg_error --max-query-iters 1000 --mc-sample-size 200 -G 49_chain -t 1 -n 1000 -d 1 --gpu 0 --domain-sizes 4 --gumbel-tau 1.0
+python -m src.main MLE_cpt_65_diamond2 mle --data-bs 128 --ncm-bs 128 --gen CPT --h-size 64 --query-track avg_error --max-query-iters 1000 --mc-sample-size 200 -G 65_diamond -t 1 -n 1000 -d 1 --gpu 0 --domain-sizes 4 --gumbel-tau 1.0
+
+python -m src.main MLE_cpt_6_cone_cloud_10k mle --data-bs 256 --ncm-bs 256 --gen CPT --h-size 64 --query-track avg_error --max-query-iters 1000 --mc-sample-size 200 -G 6_cone_cloud -t 5 -n 10000 -d 1 --gpu 0 --domain-sizes 4 --gumbel-tau 1.0
+python -m src.main MLE_cpt_15_cone_cloud_10k mle --data-bs 256 --ncm-bs 256 --gen CPT --h-size 64 --query-track avg_error --max-query-iters 1000 --mc-sample-size 200 -G 15_cone_cloud -t 1 -n 10000 -d 1 --gpu 0 --domain-sizes 4 --gumbel-tau 1.0

@@ -76,17 +76,18 @@ def _read_summary(path: str, method: str) -> pd.DataFrame:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--gan-subdir", default="est_8exp_cpt1", help="subdir under out/ for GAN(est) summary")
-    ap.add_argument("--mle-subdir", default="mle_8exp_cpt1", help="subdir under out/ for MLE summary")
+    ap.add_argument("--gan-subdir", default="est_8exp_cpt_onehot1", help="subdir under out/ for GAN(est) summary")
+    ap.add_argument("--mle-subdir", default="mle_8exp_cpt_onehot1", help="subdir under out/ for MLE summary")
     ap.add_argument(
         "--em4ci-summary",
-        default=os.path.join(OUT_ROOT, "em4ci", "8exp", "summary_em4ci_8exp.csv"),
-        help="path to EM4CI 8exp summary csv",
+        default=os.path.join(OUT_ROOT, "em4ci", "6large", "summary_em4ci_6large.csv"),
+        help="path to EM4CI 6large summary csv",
     )
-    ap.add_argument("--out-subdir", default="8exp", help="output folder under out/combined/")
+    ap.add_argument("--out-subdir", default="8exp_onehot", help="output folder under out/combined/")
     ap.add_argument(
         "--wide",
         action="store_true",
+        default=True,
         help="also write a wide-format CSV (one row per graph+n_samples, columns per method)",
     )
 

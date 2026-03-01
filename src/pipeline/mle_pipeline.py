@@ -19,7 +19,16 @@ class MLEPipeline(BasePipeline):
     def __init__(self, generator, do_var_list, dat_sets, cg, dim, hyperparams=None, ncm_model=MLE_NCM, max_query=None):
         if hyperparams is None:
             hyperparams = dict()
-        v_size = {k: 1 if k in {'X', 'Y', 'M', 'W'} else dim for k in cg}
+
+        domain_k = hyperparams.get('domain-sizes', None)
+        if domain_k is not None:
+            # categorical mode: internal representation is one-hot of size K for all observed variables
+            domain_k = int(domain_k)
+            v_size = {k: domain_k for k in cg}
+        else:
+            # legacy behavior
+            v_size = {k: 1 if k in {'X', 'Y', 'M', 'W'} else dim for k in cg}
+
         ncm = ncm_model(cg, v_size=v_size, default_u_size=hyperparams.get('u-size', 1), hyperparams=hyperparams,)
 
         super().__init__(generator, do_var_list, dat_sets, cg, dim, ncm, batch_size=hyperparams.get('data-bs', 1000))
@@ -110,7 +119,13 @@ class MLEPipeline(BasePipeline):
                 data_counts = self._get_data_counts(batch[i], data_n, do_set)
 
             for point, count in data_counts.items():
-                data_point = {k: T.ByteTensor(v).to(device=self.device) for (k, v) in point}
+                if getattr(self.ncm, 'domain_k', None) is not None:
+                    # categorical mode: keep one-hot float/soft values
+                    data_point = {k: T.as_tensor(v).to(device=self.device).float() for (k, v) in point}
+                else:
+                    # legacy mode: binary bit-vectors
+                    data_point = {k: T.ByteTensor(v).to(device=self.device) for (k, v) in point}
+
                 log_pv = self.ncm.likelihood(data_point, skip=do_set_vars, mc_size=self.mc_sample_size)
                 loss -= count * log_pv
         loss = loss / data_n
