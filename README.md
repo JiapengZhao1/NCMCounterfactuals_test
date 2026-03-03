@@ -1,4 +1,4 @@
-# Neural Causal Models for Counterfactuals (Empirical Evaluation)
+# Empirical Evaluation for Neural Causal Models
 
 This repository is built on the codebase from the paper **“Neural Causal Models for Counterfactual Identification and Estimation”** by **Kevin Xia, Yushu Pan, and Elias Bareinboim**.
 
