@@ -2,7 +2,7 @@
 
 This repository is built on the codebase from the paper **“Neural Causal Models for Counterfactual Identification and Estimation”** by **Kevin Xia, Yushu Pan, and Elias Bareinboim**.
 
-It extends that codebase to run **empirical evaluation experiments comparing EM4CI and Neural Causal Models (NCMs)**. The results are reported in the paper **“An Empirical Evaluation of Model Completion for Causal Inference”** by **Jiapeng Zhao, Elias Bareinboim, and Rina Dechter**.
+It extends that codebase to run **empirical evaluation experiments comparing EM4CI and Neural Causal Models (NCMs)**. The results are reported in the paper **“An Empirical Evaluation of Model Completion for Causal Inference”**
 
 Below are instructions to run this code and reproduce the experimental results.
 
